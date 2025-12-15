@@ -1,5 +1,7 @@
 package com.example.sas.features.customer.mapper;
 
+import com.example.sas.common.security.dto.EncryptionResult;
+import com.example.sas.features.customer.abstractions.UpdatableCustomer;
 import com.example.sas.features.customer.dto.AddressRequest;
 import com.example.sas.features.customer.dto.AddressResponse;
 import com.example.sas.features.customer.dto.CustomerRequest;
@@ -7,6 +9,7 @@ import com.example.sas.features.customer.dto.CustomerResponse;
 import com.example.sas.features.customer.entity.Address;
 import com.example.sas.features.customer.entity.Customer;
 import com.example.sas.features.customer.entity.CustomerHistory;
+import com.example.sas.features.customer.util.MaskingUtil;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
@@ -71,12 +74,26 @@ public class CustomerMapper {
         return customer;
     }
 
+    public Customer withEncryptedSsn(Customer customer, EncryptionResult encryptionResult, String ssnHash, CustomerRequest customerRequest) {
+        if (customer == null) {
+            return null;
+        }
+
+        customer.setSsnHash(ssnHash);
+        customer.setSsnEncrypted(encryptionResult.getCiphertextBase64());
+        customer.setSsnEncryptionKeyId(encryptionResult.getKeyId());
+        customer.setSsnEncryptedIv(java.util.Base64.getDecoder().decode(encryptionResult.getIvBase64()));
+        customer.setSsnMasked(MaskingUtil.maskSsn(customerRequest.getSsn()));
+
+        return customer;
+    }
+
     /**
      * Updates existing Customer entity with values from CustomerRequest
      * Only updates non-null fields from request
      * Note: Does NOT handle SSN encryption - that's business logic handled by service
      */
-    public void updateCustomerFromRequest(Customer customer, CustomerRequest request) {
+    public void updateCustomerFromRequest(Customer customer, UpdatableCustomer request) {
         if (customer == null || request == null) {
             return;
         }

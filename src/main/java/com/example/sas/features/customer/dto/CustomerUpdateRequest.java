@@ -3,24 +3,25 @@ package com.example.sas.features.customer.dto;
 import com.example.sas.features.customer.abstractions.UpdatableCustomer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 import java.util.List;
 
-@Schema(description = "Request object for creating or updating a customer")
-public class CustomerRequest implements UpdatableCustomer {
-    @NotBlank(message = "First name is required")
-    @Size(min = 1, max = 100, message = "First name must be between 1 and 100 characters")
+@Schema(description = "Request object for updating a customer")
+public class CustomerUpdateRequest implements UpdatableCustomer {
+
+    @Size(max = 100, message = "First name must not exceed 100 characters")
     @Schema(description = "Customer's first name", example = "John", requiredMode = Schema.RequiredMode.REQUIRED)
     private String firstName;
 
-    @NotBlank(message = "Last name is required")
-    @Size(min = 1, max = 100, message = "Last name must be between 1 and 100 characters")
+    @Size(max = 100, message = "Last name must not exceed 100 characters")
     @Schema(description = "Customer's last name", example = "Doe", requiredMode = Schema.RequiredMode.REQUIRED)
     private String lastName;
 
-    @NotNull(message = "Birthday is required")
     @Past(message = "Birthday must be in the past")
     @Schema(description = "Customer's date of birth", example = "1990-01-15", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDate birthday;
@@ -34,7 +35,6 @@ public class CustomerRequest implements UpdatableCustomer {
     @Schema(description = "Customer's phone number", example = "+1-555-123-4567")
     private String phone;
 
-    @NotBlank(message = "SSN is required")
     @Pattern(regexp = "^\\d{3}-\\d{2}-\\d{4}$", message = "SSN must be in format XXX-XX-XXXX")
     @Schema(description = "Customer's Social Security Number (will be encrypted at rest)", example = "123-45-6789", requiredMode = Schema.RequiredMode.REQUIRED)
     private String ssn;
@@ -44,7 +44,7 @@ public class CustomerRequest implements UpdatableCustomer {
     @Schema(description = "List of customer addresses")
     private List<AddressRequest> addresses;
 
-    public CustomerRequest() {
+    public CustomerUpdateRequest() {
     }
 
     // getters and setters

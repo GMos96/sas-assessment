@@ -6,6 +6,7 @@ import com.example.sas.features.customer.exceptions.DuplicateSsnException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -92,6 +93,19 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(
             "ENCRYPTION_ERROR",
             "An error occurred while processing sensitive data. Please contact support."
+        );
+    }
+
+    /**
+     * Handle optimistic locking failures
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleOptimisticLockingFailure(OptimisticLockingFailureException ex) {
+        log.warn("Optimistic locking failure: {}", ex.getMessage());
+        return new ErrorResponse(
+            "OPTIMISTIC_LOCKING_FAILURE",
+            "The resource you are trying to update has been modified by another process. Please refresh and try again."
         );
     }
 

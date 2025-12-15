@@ -2,6 +2,7 @@ package com.example.sas.features.customer.web;
 
 import com.example.sas.features.customer.dto.CustomerRequest;
 import com.example.sas.features.customer.dto.CustomerResponse;
+import com.example.sas.features.customer.dto.CustomerUpdateRequest;
 import com.example.sas.features.customer.service.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -12,6 +13,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -36,8 +39,8 @@ public class CustomerController {
             @ApiResponse(responseCode = "400", description = "Invalid input data", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
-    public ResponseEntity<CustomerResponse> createCustomer(@Valid @RequestBody CustomerRequest req) {
-        CustomerResponse resp = customerService.createCustomer(req);
+    public ResponseEntity<CustomerResponse> createCustomer(@Valid @RequestBody CustomerRequest req, @AuthenticationPrincipal User user) {
+        CustomerResponse resp = customerService.createCustomer(req, user);
         return ResponseEntity.created(URI.create("/api/customers/" + resp.getId())).body(resp);
     }
 
@@ -65,8 +68,9 @@ public class CustomerController {
     })
     public ResponseEntity<CustomerResponse> updateCustomer(
             @Parameter(description = "Customer ID", required = true) @PathVariable("id") UUID id,
-            @Valid @RequestBody CustomerRequest req) {
-        return ResponseEntity.ok(customerService.updateCustomer(id, req));
+            @Valid @RequestBody CustomerUpdateRequest req,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(customerService.updateCustomer(id, req, user));
     }
 
     @GetMapping("/{id}/history")
@@ -80,7 +84,7 @@ public class CustomerController {
     })
     public ResponseEntity<?> getHistory(
             @Parameter(description = "Customer ID", required = true) @PathVariable("id") UUID id,
-            @Parameter(description = "Cursor for pagination (obtained from nextCursor in previous response). Omit for first page.", required = false)
+            @Parameter(description = "Cursor for pagination (obtained from nextCursor in previous response). Omit for first page.")
             @RequestParam(value = "cursor", required = false) String cursor,
             @Parameter(description = "Number of records per page (default: 20, max: 100). Required", example = "20")
             @RequestParam(value = "limit", required = false) Integer limit) {

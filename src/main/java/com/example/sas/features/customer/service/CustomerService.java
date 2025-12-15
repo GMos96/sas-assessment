@@ -1,26 +1,27 @@
 package com.example.sas.features.customer.service;
 
+import com.example.sas.common.pagination.CursorPage;
 import com.example.sas.common.pagination.PaginationCursor;
+import com.example.sas.common.security.abstractions.EncryptionService;
+import com.example.sas.common.security.dto.EncryptionResult;
 import com.example.sas.features.customer.dto.CustomerRequest;
 import com.example.sas.features.customer.dto.CustomerResponse;
+import com.example.sas.features.customer.dto.CustomerUpdateRequest;
 import com.example.sas.features.customer.entity.Address;
 import com.example.sas.features.customer.entity.Customer;
 import com.example.sas.features.customer.entity.CustomerHistory;
-import com.example.sas.features.customer.repository.AddressRepository;
-import com.example.sas.features.customer.repository.CustomerHistoryRepository;
-import com.example.sas.features.customer.repository.CustomerRepository;
 import com.example.sas.features.customer.exceptions.CustomerNotFoundException;
 import com.example.sas.features.customer.exceptions.DuplicateSsnException;
 import com.example.sas.features.customer.mapper.CustomerMapper;
-import com.example.sas.common.security.dto.EncryptionResult;
-import com.example.sas.common.security.abstractions.EncryptionService;
+import com.example.sas.features.customer.repository.AddressRepository;
+import com.example.sas.features.customer.repository.CustomerHistoryRepository;
+import com.example.sas.features.customer.repository.CustomerRepository;
 import com.example.sas.features.customer.util.MaskingUtil;
-import jakarta.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.sas.common.pagination.CursorPage;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -51,15 +52,15 @@ public class CustomerService {
     }
 
     @Transactional
-    public CustomerResponse createCustomer(CustomerRequest req) {
-        log.info("Creating customer: firstName={}, lastName={}", req.getFirstName(), req.getLastName());
+    public CustomerResponse createCustomer(CustomerRequest customerRequest, User authenticatedUser) {
+        log.info("Creating customer: firstName={}, lastName={}", customerRequest.getFirstName(), customerRequest.getLastName());
 
         // Map request to entity
-        Customer customer = customerMapper.toCustomerEntity(req);
+        Customer customer = customerMapper.toCustomerEntity(customerRequest);
 
         // Handle SSN: hash + encrypt + mask (business logic, not mapping)
-        if (req.getSsn() != null) {
-            String ssnHash = encryptionService.hmacSha256(req.getSsn());
+        if (customerRequest.getSsn() != null) {
+            String ssnHash = encryptionService.hmacSha256(customerRequest.getSsn());
 
             // Check for duplicate SSN
             Optional<Customer> existingCustomer = customerRepository.findBySsnHash(ssnHash);
@@ -68,12 +69,8 @@ public class CustomerService {
                 throw new DuplicateSsnException("A customer with this SSN already exists");
             }
 
-            EncryptionResult enc = encryptionService.encrypt(req.getSsn().getBytes());
-            customer.setSsnHash(ssnHash);
-            customer.setSsnEncrypted(enc.getCiphertextBase64());
-            customer.setSsnEncryptionKeyId(enc.getKeyId());
-            customer.setSsnEncryptedIv(java.util.Base64.getDecoder().decode(enc.getIvBase64()));
-            customer.setSsnMasked(MaskingUtil.maskSsn(req.getSsn()));
+            EncryptionResult encryptionResult = encryptionService.encrypt(customerRequest.getSsn().getBytes());
+            customer = customerMapper.withEncryptedSsn(customer, encryptionResult, ssnHash, customerRequest);
         }
 
         Customer saved = customerRepository.save(customer);
@@ -81,8 +78,8 @@ public class CustomerService {
 
         // Save addresses using mapper
         List<Address> savedAddresses = List.of();
-        if (req.getAddresses() != null) {
-            savedAddresses = customerMapper.toAddressEntities(req.getAddresses(), saved.getId())
+        if (customerRequest.getAddresses() != null) {
+            savedAddresses = customerMapper.toAddressEntities(customerRequest.getAddresses(), saved.getId())
                 .stream()
                 .map(addressRepository::save)
                 .toList();
@@ -90,6 +87,7 @@ public class CustomerService {
 
         // Write initial history using mapper
         CustomerHistory history = customerMapper.toCustomerHistory(saved, "CREATED");
+        history.setChangedBy(authenticatedUser.getUsername());
         customerHistoryRepository.save(history);
 
         return customerMapper.toCustomerResponse(saved, savedAddresses);
@@ -111,13 +109,14 @@ public class CustomerService {
     }
 
     @Transactional
-    public CustomerResponse updateCustomer(UUID id, CustomerRequest req) {
+    public CustomerResponse updateCustomer(UUID id, CustomerUpdateRequest req, User authenticatedUser) {
         log.info("Updating customer: id={}", id);
         Customer existing = customerRepository.findById(id)
             .orElseThrow(() -> new CustomerNotFoundException("Customer not found with ID: " + id));
 
         // Create history row of previous state using mapper
         CustomerHistory history = customerMapper.toCustomerHistory(existing, "UPDATED");
+        history.setChangedBy(authenticatedUser.getUsername());
         customerHistoryRepository.save(history);
 
         // Apply updates using mapper
@@ -193,14 +192,14 @@ public class CustomerService {
         // Generate next cursor from last item in this page
         String nextCursor = null;
         if (hasNextPage && !records.isEmpty()) {
-            CustomerHistory lastItem = records.get(records.size() - 1);
+            CustomerHistory lastItem = records.getLast();
             nextCursor = new PaginationCursor(lastItem.getChangedAt(), lastItem.getId().toString()).encode();
         }
 
         // Generate previous cursor from first item in this page
         String previousCursor = null;
         if (!records.isEmpty()) {
-            CustomerHistory firstItem = records.get(0);
+            CustomerHistory firstItem = records.getFirst();
             // Check if there are records after the first item (indicating we're not at the beginning)
             List<CustomerHistory> afterCheck = customerHistoryRepository
                 .findByCustomerIdAndChangedAtGreaterThanOrderByChangedAtAscIdAsc(
