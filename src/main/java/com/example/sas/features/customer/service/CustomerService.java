@@ -1,5 +1,6 @@
 package com.example.sas.features.customer.service;
 
+import com.example.sas.common.pagination.PaginationCursor;
 import com.example.sas.features.customer.dto.CustomerRequest;
 import com.example.sas.features.customer.dto.CustomerResponse;
 import com.example.sas.features.customer.entity.Address;
@@ -14,11 +15,14 @@ import com.example.sas.features.customer.mapper.CustomerMapper;
 import com.example.sas.common.security.dto.EncryptionResult;
 import com.example.sas.common.security.abstractions.EncryptionService;
 import com.example.sas.features.customer.util.MaskingUtil;
+import jakarta.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.sas.common.pagination.CursorPage;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -154,6 +158,64 @@ public class CustomerService {
         List<CustomerHistory> history = customerHistoryRepository.findAllByCustomerIdOrderByChangedAtDesc(customerId);
         log.debug("Retrieved {} history records for customer: id={}", history.size(), customerId);
         return history;
+    }
+
+    @Transactional(readOnly = true)
+    public CursorPage<CustomerHistory> getHistoryPaginated(UUID customerId, String cursor, Integer limit) {
+        // Verify customer exists
+        customerRepository.findById(customerId)
+            .orElseThrow(() -> new CustomerNotFoundException("Customer not found with ID: " + customerId));
+
+        final int pageSize = limit != null ? limit : 20;
+        final int fetchSize = pageSize + 1; // Fetch one extra to determine if there's a next page
+
+        log.debug("Fetching paginated history for customer: id={}, cursor={}, pageSize={}",
+                  customerId, cursor, pageSize);
+
+        List<CustomerHistory> records;
+        if (cursor == null) {
+            // First page: fetch the most recent records
+            records = customerHistoryRepository.findByCustomerIdAndChangedAtLessThanOrderByChangedAtDescIdDesc(
+                customerId, OffsetDateTime.now().plusSeconds(1), fetchSize);
+        } else {
+            // Subsequent pages: fetch after the cursor
+            PaginationCursor decodedCursor = PaginationCursor.decode(cursor);
+            records = customerHistoryRepository.findByCustomerIdAndChangedAtLessThanOrderByChangedAtDescIdDesc(
+                customerId, decodedCursor.getTimestamp(), fetchSize);
+        }
+
+        // Determine if there's a next page
+        boolean hasNextPage = records.size() > pageSize;
+        if (hasNextPage) {
+            records = records.subList(0, pageSize);
+        }
+
+        // Generate next cursor from last item in this page
+        String nextCursor = null;
+        if (hasNextPage && !records.isEmpty()) {
+            CustomerHistory lastItem = records.get(records.size() - 1);
+            nextCursor = new PaginationCursor(lastItem.getChangedAt(), lastItem.getId().toString()).encode();
+        }
+
+        // Generate previous cursor from first item in this page
+        String previousCursor = null;
+        if (!records.isEmpty()) {
+            CustomerHistory firstItem = records.get(0);
+            // Check if there are records after the first item (indicating we're not at the beginning)
+            List<CustomerHistory> afterCheck = customerHistoryRepository
+                .findByCustomerIdAndChangedAtGreaterThanOrderByChangedAtAscIdAsc(
+                    customerId, firstItem.getChangedAt(), 1);
+            if (!afterCheck.isEmpty()) {
+                // There's a record after this one, so we can navigate backward
+                previousCursor = new PaginationCursor(firstItem.getChangedAt(),
+                                                      firstItem.getId().toString()).encode();
+            }
+        }
+
+        log.debug("Retrieved {} history records for customer: id={}, hasNextPage={}",
+                  records.size(), customerId, hasNextPage);
+
+        return new CursorPage<>(records, nextCursor, previousCursor, records.size(), hasNextPage);
     }
 }
 

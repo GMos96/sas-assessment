@@ -2,7 +2,6 @@ package com.example.sas.features.customer.web;
 
 import com.example.sas.features.customer.dto.CustomerRequest;
 import com.example.sas.features.customer.dto.CustomerResponse;
-import com.example.sas.features.customer.entity.CustomerHistory;
 import com.example.sas.features.customer.service.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -16,7 +15,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -72,16 +70,28 @@ public class CustomerController {
     }
 
     @GetMapping("/{id}/history")
-    @Operation(summary = "Get customer history", description = "Retrieves the full audit history of all changes made to a customer record")
+    @Operation(summary = "Get customer history", description = "Retrieves the audit history of all changes made to a customer record. Supports cursor-based pagination with optional cursor and limit parameters.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "History retrieved successfully",
-                    content = @Content(schema = @Schema(implementation = CustomerHistory.class))),
+                    content = @Content(schema = @Schema(implementation = Object.class))),
             @ApiResponse(responseCode = "404", description = "Customer not found", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid limit parameter", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
-    public ResponseEntity<List<CustomerHistory>> getHistory(
-            @Parameter(description = "Customer ID", required = true) @PathVariable("id") UUID id) {
-        return ResponseEntity.ok(customerService.getHistory(id));
+    public ResponseEntity<?> getHistory(
+            @Parameter(description = "Customer ID", required = true) @PathVariable("id") UUID id,
+            @Parameter(description = "Cursor for pagination (obtained from nextCursor in previous response). Omit for first page.", required = false)
+            @RequestParam(value = "cursor", required = false) String cursor,
+            @Parameter(description = "Number of records per page (default: 20, max: 100). Required", example = "20")
+            @RequestParam(value = "limit", required = false) Integer limit) {
+
+        // Validate limit parameter
+        if (limit != null && (limit < 1 || limit > 100)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        // Delegate to service layer - service handles pagination logic
+        return ResponseEntity.ok(customerService.getHistoryPaginated(id, cursor, limit));
     }
 }
 
