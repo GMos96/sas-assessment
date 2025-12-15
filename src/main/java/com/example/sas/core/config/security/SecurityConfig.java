@@ -1,5 +1,6 @@
 package com.example.sas.core.config.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -38,18 +39,21 @@ public class SecurityConfig {
         return http.build();
     }
 
-    @Bean
-    public UserDetailsService userDetailsService() {
-        // In-memory user for development/testing
-        // In production, use a proper UserDetailsService backed by a database
-        UserDetails user = User.builder()
-            .username("admin")
-            .password(passwordEncoder().encode("admin123"))
-            .roles("USER", "ADMIN")
-            .build();
+@Bean
+public UserDetailsService userDetailsService(
+    @Value("${app.security.default-username:admin}") String username,
+    @Value("${app.security.default-password:admin123}") String password,
+    @Value("${app.security.default-roles:USER,ADMIN}") String roles
+) {
+    // In-memory user for development/testing (configured via application properties)
+    UserDetails user = User.builder()
+        .username(username)
+        .password(passwordEncoder().encode(password))
+        .roles(roles.split("\\s*,\\s*"))
+        .build();
 
-        return new InMemoryUserDetailsManager(user);
-    }
+    return new InMemoryUserDetailsManager(user);
+}
 
     @Bean
     public PasswordEncoder passwordEncoder() {
