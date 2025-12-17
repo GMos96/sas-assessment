@@ -26,6 +26,7 @@ We have adopted a **multi-layered testing strategy** combining:
    - Base class: `AbstractIntegrationTest` provides reusable setup
    - Key tests: `CustomerControllerPaginationTest`
    - Benefits: Tests realistic scenarios without compromising local environment
+   - TBD: Currently not enabled
 
 3. **Test Configuration**
    - Separate profiles: `application-test.properties` for test-specific settings
