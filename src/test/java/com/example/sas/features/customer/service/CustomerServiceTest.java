@@ -11,7 +11,6 @@ import com.example.sas.features.customer.entity.CustomerHistory;
 import com.example.sas.features.customer.exceptions.CustomerNotFoundException;
 import com.example.sas.features.customer.exceptions.DuplicateSsnException;
 import com.example.sas.features.customer.mapper.CustomerMapper;
-import com.example.sas.features.customer.repository.AddressRepository;
 import com.example.sas.features.customer.repository.CustomerHistoryRepository;
 import com.example.sas.features.customer.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +42,7 @@ public class CustomerServiceTest {
     private CustomerHistoryRepository customerHistoryRepository;
 
     @Mock
-    private AddressRepository addressRepository;
+    private AddressService addressService;
 
     @Mock
     private EncryptionService encryptionService;
@@ -56,7 +55,7 @@ public class CustomerServiceTest {
 
     @BeforeEach
     void setUp() {
-        this.customerService = new CustomerService(customerRepository, addressRepository, customerHistoryRepository, encryptionService, customerMapper);
+        this.customerService = new CustomerService(customerRepository, addressService, customerHistoryRepository, encryptionService, customerMapper);
         this.testCustomerId = UUID.randomUUID();
         this.testUser = new User("test-user", "password", Collections.emptyList());
     }
@@ -148,7 +147,7 @@ public class CustomerServiceTest {
 
         verify(encryptionService, never()).encrypt(any());
         verify(customerRepository, never()).save(any(Customer.class));
-        verify(addressRepository, never()).save(any(Address.class));
+        verify(addressService, never()).save(any(Address.class));
         verify(customerHistoryRepository, never()).save(any(CustomerHistory.class));
     }
 
@@ -162,7 +161,7 @@ public class CustomerServiceTest {
         List<Address> addresses = List.of(address);
 
         when(customerRepository.findById(testCustomerId)).thenReturn(Optional.of(customer));
-        when(addressRepository.findAllByCustomerId(testCustomerId)).thenReturn(addresses);
+        when(addressService.findAllByCustomerId(testCustomerId)).thenReturn(addresses);
 
         CustomerResponse result = customerService.getCustomer(testCustomerId);
 
@@ -178,7 +177,7 @@ public class CustomerServiceTest {
                 .isInstanceOf(CustomerNotFoundException.class)
                 .hasMessageContaining("Customer not found with ID");
 
-        verify(addressRepository, never()).findAllByCustomerId(any());
+        verify(addressService, never()).findAllByCustomerId(any());
     }
 
     @Test
@@ -198,13 +197,13 @@ public class CustomerServiceTest {
 
         when(customerRepository.findById(testCustomerId)).thenReturn(Optional.of(existingCustomer));
         when(customerHistoryRepository.save(any(CustomerHistory.class))).thenReturn(history);
-        when(addressRepository.findAllByCustomerId(testCustomerId)).thenReturn(Collections.emptyList());
+        when(addressService.findAllByCustomerId(testCustomerId)).thenReturn(Collections.emptyList());
         when(customerRepository.save(existingCustomer)).thenReturn(savedCustomer);
 
         CustomerResponse result = customerService.updateCustomer(testCustomerId, request, testUser);
 
         assertThat(result).isNotNull();
-        verify(addressRepository, never()).save(any(Address.class));
+        verify(addressService, never()).save(any(Address.class));
     }
 
     @Test
@@ -229,7 +228,7 @@ public class CustomerServiceTest {
         when(customerHistoryRepository.save(any(CustomerHistory.class))).thenReturn(history);
         when(encryptionService.hmacSha256("987-65-4321")).thenReturn(ssnHash);
         when(encryptionService.encrypt("987-65-4321".getBytes())).thenReturn(encryptionResult);
-        when(addressRepository.findAllByCustomerId(testCustomerId)).thenReturn(Collections.emptyList());
+        when(addressService.findAllByCustomerId(testCustomerId)).thenReturn(Collections.emptyList());
         when(customerRepository.save(existingCustomer)).thenReturn(savedCustomer);
 
         CustomerResponse result = customerService.updateCustomer(testCustomerId, request, testUser);
@@ -261,14 +260,14 @@ public class CustomerServiceTest {
 
         when(customerRepository.findById(testCustomerId)).thenReturn(Optional.of(existingCustomer));
         when(customerHistoryRepository.save(any(CustomerHistory.class))).thenReturn(history);
-        when(addressRepository.findAllByCustomerId(testCustomerId)).thenReturn(oldAddresses);
+        when(addressService.findAllByCustomerId(testCustomerId)).thenReturn(oldAddresses);
         when(customerRepository.save(existingCustomer)).thenReturn(savedCustomer);
 
         CustomerResponse result = customerService.updateCustomer(testCustomerId, request, testUser);
 
         assertThat(result).isNotNull();
-        verify(addressRepository).deleteById(oldAddress1.getId());
-        verify(addressRepository).deleteById(oldAddress2.getId());
+        verify(addressService).deleteAddressById(oldAddress1.getId());
+        verify(addressService).deleteAddressById(oldAddress2.getId());
     }
 
     @Test
@@ -282,7 +281,7 @@ public class CustomerServiceTest {
                 .hasMessageContaining("Customer not found with ID");
 
         verify(customerHistoryRepository, never()).save(any(CustomerHistory.class));
-        verify(addressRepository, never()).findAllByCustomerId(any());
+        verify(addressService, never()).findAllByCustomerId(any());
         verify(encryptionService, never()).hmacSha256(any());
     }
 

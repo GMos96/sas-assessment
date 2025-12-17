@@ -13,10 +13,8 @@ import com.example.sas.features.customer.entity.CustomerHistory;
 import com.example.sas.features.customer.exceptions.CustomerNotFoundException;
 import com.example.sas.features.customer.exceptions.DuplicateSsnException;
 import com.example.sas.features.customer.mapper.CustomerMapper;
-import com.example.sas.features.customer.repository.AddressRepository;
 import com.example.sas.features.customer.repository.CustomerHistoryRepository;
 import com.example.sas.features.customer.repository.CustomerRepository;
-import com.example.sas.features.customer.util.MaskingUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.userdetails.User;
@@ -34,18 +32,18 @@ public class CustomerService {
     private static final Logger log = LoggerFactory.getLogger(CustomerService.class);
 
     private final CustomerRepository customerRepository;
-    private final AddressRepository addressRepository;
+    private final AddressService addressService;
     private final CustomerHistoryRepository customerHistoryRepository;
     private final EncryptionService encryptionService;
     private final CustomerMapper customerMapper;
 
     public CustomerService(CustomerRepository customerRepository,
-                           AddressRepository addressRepository,
+                           AddressService addressService,
                            CustomerHistoryRepository customerHistoryRepository,
                            EncryptionService encryptionService,
                            CustomerMapper customerMapper) {
         this.customerRepository = customerRepository;
-        this.addressRepository = addressRepository;
+        this.addressService = addressService;
         this.customerHistoryRepository = customerHistoryRepository;
         this.encryptionService = encryptionService;
         this.customerMapper = customerMapper;
@@ -81,7 +79,7 @@ public class CustomerService {
         if (customerRequest.getAddresses() != null) {
             savedAddresses = customerMapper.toAddressEntities(customerRequest.getAddresses(), saved.getId())
                 .stream()
-                .map(addressRepository::save)
+                .map(addressService::save)
                 .toList();
         }
 
@@ -102,7 +100,7 @@ public class CustomerService {
                 return new CustomerNotFoundException("Customer not found with ID: " + id);
             });
 
-        List<Address> addresses = addressRepository.findAllByCustomerId(customer.getId());
+        List<Address> addresses = addressService.findAllByCustomerId(customer.getId());
         log.debug("Customer retrieved: id={}, addressCount={}", id, addresses.size());
 
         return customerMapper.toCustomerResponse(customer, addresses);
@@ -132,14 +130,14 @@ public class CustomerService {
         Customer saved = customerRepository.save(existing);
 
         // Handle addresses: delete old and save new (naive approach acceptable for assessment)
-        List<Address> oldAddresses = addressRepository.findAllByCustomerId(saved.getId());
-        oldAddresses.forEach(address -> addressRepository.deleteById(address.getId()));
+        List<Address> oldAddresses = addressService.findAllByCustomerId(saved.getId());
+        oldAddresses.forEach(address -> addressService.deleteAddressById(address.getId()));
 
         List<Address> savedAddresses = List.of();
         if (req.getAddresses() != null) {
             savedAddresses = customerMapper.toAddressEntities(req.getAddresses(), saved.getId())
                 .stream()
-                .map(addressRepository::save)
+                .map(addressService::save)
                 .toList();
         }
 
