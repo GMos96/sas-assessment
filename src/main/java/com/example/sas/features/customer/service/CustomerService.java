@@ -125,12 +125,8 @@ public class CustomerService {
         // Handle SSN encryption if SSN is being updated (business logic)
         if (req.getSsn() != null) {
             String ssnHash = encryptionService.hmacSha256(req.getSsn());
-            EncryptionResult enc = encryptionService.encrypt(req.getSsn().getBytes());
-            existing.setSsnHash(ssnHash);
-            existing.setSsnEncrypted(enc.getCiphertextBase64());
-            existing.setSsnEncryptionKeyId(enc.getKeyId());
-            existing.setSsnEncryptedIv(java.util.Base64.getDecoder().decode(enc.getIvBase64()));
-            existing.setSsnMasked(MaskingUtil.maskSsn(req.getSsn()));
+            EncryptionResult encryptionResult = encryptionService.encrypt(req.getSsn().getBytes());
+            existing = customerMapper.withEncryptedSsn(existing, encryptionResult, ssnHash, req);
         }
 
         Customer saved = customerRepository.save(existing);

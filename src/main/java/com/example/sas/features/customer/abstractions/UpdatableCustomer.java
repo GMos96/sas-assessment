@@ -3,6 +3,7 @@ package com.example.sas.features.customer.abstractions;
 import java.time.LocalDate;
 
 public interface UpdatableCustomer {
+    String getSsn();
     String getFirstName();
     String getLastName();
     LocalDate getBirthday();

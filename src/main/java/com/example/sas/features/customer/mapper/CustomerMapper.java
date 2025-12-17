@@ -74,7 +74,7 @@ public class CustomerMapper {
         return customer;
     }
 
-    public Customer withEncryptedSsn(Customer customer, EncryptionResult encryptionResult, String ssnHash, CustomerRequest customerRequest) {
+    public Customer withEncryptedSsn(Customer customer, EncryptionResult encryptionResult, String ssnHash, UpdatableCustomer customerRequest) {
         if (customer == null) {
             return null;
         }
