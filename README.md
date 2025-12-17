@@ -253,7 +253,7 @@ Main configuration in `src/main/resources/application.properties`:
 # Database (overridden by Docker Compose)
 spring.datasource.url=jdbc:postgresql://localhost:5432/mydatabase
 spring.datasource.username=myuser
-spring.datasource.password=password
+spring.datasource.password=secret
 
 # Encryption keys (use environment variables in production)
 app.encryption.aes256.key=${ENCRYPTION_KEY_BASE64}
